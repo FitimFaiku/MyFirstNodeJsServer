@@ -25,15 +25,12 @@ const fileName = "playersName.json"
 
 // Props go to https://gist.github.com/prof3ssorSt3v3/8d9fc6be89d3aefd3ea84b92f923181a
 const server = http.createServer(function(req, res) {
-    //console.log(req.url);
     let parsedURL = url.parse(req.url, true);
     let path = parsedURL.pathname;
     // parsedURL.pathname  parsedURL.query
     // standardize the requested url by removing any '/' at the start or end
     // '/folder/to/file/' becomes 'folder/to/file'
     path = path.replace(/^\/+|\/+$/g, "");
-    // console.log("Req", req);
-    console.log("Path Hier:", path);
     let qs = parsedURL.query;
     let headers = req.headers;
     let method = req.method.toLowerCase();
@@ -48,11 +45,9 @@ const server = http.createServer(function(req, res) {
     });
     req.on("end", function() {
       //request part is finished... we can send a response now
-      console.log("send a response");
-      // console.log("path" , path, "routes", routes, "routes[path]", routes[path]);
       //we will use the standardized version of the path
       let route =
-        typeof routes[path] !== "undefined" ? routes[path] : routes["home"];
+        typeof routes[path] !== "undefined" ? routes[path] : routes["notFound"];
       let data = {
         path: path,
         queryString: qs,
@@ -67,7 +62,6 @@ const server = http.createServer(function(req, res) {
     });
 });
 server.listen(port, function() {
-    // Console will print the message
     console.log('Server running at http://127.0.0.1:' + port + '/');
   });
 
@@ -76,45 +70,67 @@ server.listen(port, function() {
 
 
 const routes = {
-    '/': function (data, res) {
-        let payload ="<h1>Welcome</h1>";
-        let payloadStr = JSON.stringify(payload);
-        res.setHeader("Content-Type", "application/html");
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.writeHead(200);
-        res.write(payloadStr);
-        res.end("\n");
+    '': function (data, res) {
+        //this one is home
+        res.setHeader("Content-Type", "text/html");
+        fs.readFile('./index.html', null, function (error, data) {
+            if (error) {
+                res.writeHead(404);
+                res.write('Whoops! File not found!');
+            } else {
+                res.write(data);
+            }
+            res.end();
+        });
     },
     "players" : function (data, res) {
         let players = null;
-
-        var contents = fs.readFileSync(fileName, 'utf8');
-        let playerNamesJson = JSON.parse(contents);
-        console.log("Players are:", playerNamesJson);
-        let payloadStr = JSON.stringify(playerNamesJson);
-        res.setHeader("Content-Type", "text/plain");
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.writeHead(200);
-        res.write(payloadStr);
+        var contents = '';
+        try {
+            contents = fs.readFileSync(fileName, 'utf8');
+            let playerNamesJson = JSON.parse(contents);
+            console.log("Players are:", playerNamesJson);
+            let payloadStr = JSON.stringify(playerNamesJson);
+            res.setHeader("Content-Type", "text/html");
+            res.setHeader("Access-Control-Allow-Origin", "*");
+            res.writeHead(200);
+            let listenItems = ``;
+    
+            playerNamesJson.forEach(element => {
+                listenItems += `<li>${element.playerName}</li>`;
+            });
+            res.write(`
+            <!doctype html>
+            <html>
+            <body>
+                <label>Playernames: </label>
+                <ul>
+                    ${listenItems}
+                </ul>
+                <a href="/"> Back To Home </a>
+            </body>
+            </html>
+        `);
         res.end("\n");
+        }
+        catch {
+            console.log("File does not exist");
+        }
+       
+        
+       
+        
 
     },
     "create-player" : function(data, res) {
-        // console.log("data:", data);
         let outputData = parse(data.body);
         let playerName = outputData.playerName;
-        writeToFile(playerName);
-        let payload = " Player created";
-        let payloadStr = JSON.stringify(payload);
-        res.setHeader("Content-Type", "text/plain");
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.writeHead(200);
-        res.write(payloadStr);
-        res.end(`\n`);
-    },
-    "home": function(data, res) {
-        //this one gets called if no route matches
-        console.log("home");
+        let outputText = `Player could not be created`;
+        if(playerName!= null && playerName !== ""){
+            writeToFile(playerName);
+            outputText = `Player ${playerName} has been created`;
+        }
+        
         res.setHeader("Content-Type", "text/html");
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.writeHead(200);
@@ -122,26 +138,35 @@ const routes = {
         <!doctype html>
         <html>
         <body>
-            <form action="/create-player" method="post">
-                <input type="text" name="playerName"/>
-                <button>Save</button>
-            </form>
+            <label>${outputText}</label>
+            <div> <a href="/"> Back To Home </a></div> 
+            <div> <a href="/players"> See all players </a></div>
         </body>
         </html>
     `);
         res.end("\n");
+    },
+    "notFound": function(data, res) {
+        //this one gets called if no route matches
+
+        res.setHeader("Content-Type", "text/html");
+        fs.readFile('./notFound.html', null, function (error, data) {
+            if (error) {
+                res.writeHead(404);
+                res.write('Whoops! File not found!');
+            } else {
+                res.write(data);
+            }
+            res.end();
+        });
     }
 
 
 };
 
-
-
-
 function writeToFile(playerName){
     const playerNameObjectJson = {playerName: playerName};
     const playerNameArrayObjectJson = [playerNameObjectJson];
-    console.log("I am in write to file");
 
     fs.stat(fileName, function(err, stat) {
         if(err == null) {
@@ -149,7 +174,7 @@ function writeToFile(playerName){
             // Get Json Data from File
             let rawdata = fs.readFileSync(path.resolve(__dirname, fileName));
             let playerNamesJson = JSON.parse(rawdata);
-            console.log("playerNamesJson:", playerNamesJson);
+            // console.log("playerNamesJson:", playerNamesJson);
             playerNamesJson.push(playerNameObjectJson);
             fs.writeFileSync(path.resolve(__dirname, fileName), JSON.stringify(playerNamesJson));
 
@@ -160,9 +185,5 @@ function writeToFile(playerName){
             console.log('Some other error: ', err.code);
         }
     });
-    // let {readFile} = require("fs");
-// readFile("file.json", "utf8", (error, text) => {
-//   console.log("The file contains:", text);
-// });
 };
 
