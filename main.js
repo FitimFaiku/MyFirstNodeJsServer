@@ -108,6 +108,13 @@ const routes = {
                     ${listenItems}
                 </ul>
                 <a href="/"> Back To Home </a>
+                <div>
+                    <label> Insert the Player name you want to delete </label>
+                    <form action="/delete-player" method="post">
+                    <input type="text" minlength="3" name="playerName"/>
+                   <button>Delete</button>
+                </div>
+            </form>
             </body>
             </html>
         `);
@@ -116,11 +123,6 @@ const routes = {
         catch {
             console.log("File does not exist");
         }
-       
-        
-       
-        
-
     },
     "create-player" : function(data, res) {
         let outputData = parse(data.body);
@@ -141,10 +143,18 @@ const routes = {
             <label>${outputText}</label>
             <div> <a href="/"> Back To Home </a></div> 
             <div> <a href="/players"> See all players </a></div>
+    
         </body>
         </html>
     `);
         res.end("\n");
+    },
+    "delete-player" : function(data, res) {
+        let outputData = parse(data.body);
+        let playerName = outputData.playerName;
+        console.log("PlayerName in delete player", playerName);
+        findAndDeletePlayerName(playerName);
+        
     },
     "notFound": function(data, res) {
         //this one gets called if no route matches
@@ -186,4 +196,28 @@ function writeToFile(playerName){
         }
     });
 };
+
+function findAndDeletePlayerName(playerName){
+    fs.stat(fileName, function(err, stat) {
+        if(err == null) {
+            console.log('File exists');
+            // Get Json Data from File
+            let rawdata = fs.readFileSync(path.resolve(__dirname, fileName));
+            let playerNamesJson = JSON.parse(rawdata);
+            // console.log("playerNamesJson:", playerNamesJson);
+            let newPlayerNamesJson = playerNamesJson.filter(element => {
+                return element.playerName !== playerName
+            });
+            fs.writeFileSync(path.resolve(__dirname, fileName), JSON.stringify(newPlayerNamesJson));
+
+        } else if(err.code === 'ENOENT') {
+            // file does not exist
+            console.log("File does not exist");
+            return false;
+        } else {
+            console.log('Some other error: ', err.code);
+            return false;
+        }
+    });
+}
 
